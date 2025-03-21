@@ -11,7 +11,6 @@ object PathComponent {
   def unapply(p : PathComponent): Option[(String, String)] = if(p.fileName.isEmpty) None else { var s = p.fileName.split("/"); Some((s(0)+"/" + s(1)+"/"),s(s.length -1))};
 }
 
-
 object Ques9 extends  App {
   val pC = PathComponent("src/myFile/file.txt");
 
