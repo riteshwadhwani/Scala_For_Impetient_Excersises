@@ -4,135 +4,121 @@ import scala.annotation.tailrec
 
 
 object SelfImplementedSet extends  App {
-  trait MySet[A] extends (A=>Boolean) {
-    def head : A
-    def tail : MySet[A] ;
-    def contains(a : A) : Boolean;
-    def isEmpty : Boolean;
-    def +(element: A) : MySet[A];
-    def ++(set : MySet[A]) : MySet[A]
-    def map[B](f : A =>B) : MySet[B]
-    def flatMap[B](f : A => MySet[B]) : MySet[B];
-    def filter(predicate : A => Boolean) : MySet[A];
-    def size : Int
-    def foreach(func : A => Unit): Unit
+
+  /* Exercise
+  Implement a laizily evaluated , singly linked Stream of elements
+   */
+
+  abstract class MyStream[+A] {
+    def isEmpty :Boolean;
+    def head : A;
+    def tail : MyStream[A]
+
+    //Prepends the element
+    def #:: [B>:A](element : B) : MyStream[B]
+    def ++[B>:A](anotherStream : => MyStream[B]): MyStream[B]
+
+    def foreach(f : A=> Unit) :Unit
+    def map[B] (f:A=> B) : MyStream[B]
+    def flatMap[B](f : A=> MyStream[B]) : MyStream[B]
+    def filter(predicate : A => Boolean) : MyStream[A]
+
+    def take(n:Int) : MyStream[A] // takes first n elements
+    def takeAsList(n:Int) : List[A] //return first n elements as List
   }
 
-  class Empty[A] extends MySet[A] {
+  class EmptyStream[A] extends MyStream[A] {
 
-    def head : A = ???
-    def tail : MySet[A] = ???
-    override def contains(a: A): Boolean = ???
+    override def isEmpty: Boolean = true
 
-    override def isEmpty : Boolean = true;
+    override def head: A = ???
 
-    override def +(element: A): MySet[A] = new set(element,new Empty);
+    override def tail: MyStream[A] = this
 
-    override def ++(set: MySet[A]): MySet[A] = set
+    override def #::[B >: A](element: B): MyStream[B] = new Stream(element,this);
 
-    override def map[B](f: A => B): MySet[B] = new Empty
+    override def ++[B >: A](anotherStream: => MyStream[B]): MyStream[B] = anotherStream
 
-    override def flatMap[B](f: A => MySet[B]): MySet[B] = new Empty
+    override def foreach(f: A => Unit): Unit = ()
 
-    override def filter(predicate: A => Boolean): MySet[A] = new Empty
+    override def map[B](f: A => B): MyStream[B] = ???
 
-    override def apply(v1: A): Boolean = false
+    override def flatMap[B](f: A => MyStream[B]): MyStream[B] = ???
 
-    override def size: Int = 0
+    override def filter(predicate: A => Boolean): MyStream[A] = ???
 
-    override def foreach(func: A => Unit): Unit = new Empty
+    override def take(n: Int): MyStream[A] = ???
+
+    override def takeAsList(n: Int): List[A] = ???
   }
 
+  class Stream[+A](h : A, t : => MyStream[A]) extends MyStream[A]{
 
-  class set[A](h : A, t : MySet[A]) extends MySet[A]{
-    def head : A = h
-    def tail : MySet[A] = t
+    override def isEmpty: Boolean = false
 
-    override def isEmpty : Boolean = false;
+    override def head: A = h
 
-    @tailrec
-    private def containsHelper(elem : A, isPresent : Boolean, set : MySet[A]): Boolean = {
-      if(set.isEmpty) isPresent else containsHelper(elem , isPresent || set.head == elem ,set.tail);
+    override def tail: MyStream[A] = t;
+
+    override def #::[B >: A](element: B): MyStream[B] =  new Stream(element,this)
+
+    override def ++[B >: A](anotherStream : => MyStream[B]): MyStream[B] = if(this.isEmpty) anotherStream else { new Stream(h,t ++ anotherStream)}
+    //++ another way new Stream(h,t ++ anotherStream)
+    override def foreach(f: A => Unit): Unit = if(this.tail.isEmpty) f(this.h) else {f(this.h) ; this.tail.foreach(f)};
+    // {f(head); tail.foreach(f);}
+    override def map[B](f: A => B): MyStream[B] = if(this.tail.isEmpty) new Stream[B](f(this.head),new EmptyStream[B])  else this.tail.map(f).#::(f(this.head));
+
+    override def flatMap[B](f: A => MyStream[B]): MyStream[B] = f(head) ++ tail.flatMap(f)
+
+    override def filter(predicate: A => Boolean): MyStream[A] = if(predicate(this.head)) new Stream(this.head,this.tail.filter(predicate)) else this.filter(predicate);
+
+    override def take(n: Int): MyStream[A] = if(n==0) new EmptyStream else if (n==1) new Stream(this.head,new EmptyStream) else this.tail.take(n-1).#::(this.head)
+
+    override def takeAsList(n: Int): List[A] =if(n==0) List[A]() else if(n==1) List(this.head) else {this.tail.takeAsList(n-1).appended(this.head) }
+  }
+
+  object MyStream {
+    def from[A] (start:A) (generator : A => A) : MyStream[A] = {
+      new Stream[A](start,this.from(generator(start))(generator));
     }
-    override def contains(a: A): Boolean = if(this.isEmpty) false else containsHelper(a,false,this);
-
-    override def +(element: A): MySet[A] = if(this.contains(element)) this else new set(element,this);
-
-    def add(A : MySet[A],B : MySet[A],head : A): MySet[A] = {
-      if(B.isEmpty) A else {
-        if(B.tail.isEmpty){
-          add(A + head , new Empty, head);
-        }else  if(A.contains(head)) add(A,B.tail,B.tail.head) else add(A + head , B.tail,B.tail.head)
-      }
-
-    }
-    override def ++(set: MySet[A]): MySet[A] = add(this,set,set.head);
-
-
-    override def map[B](f: A => B): MySet[B] = if(this.tail.isEmpty) new set(f(this.h),new Empty)
-    else new set(f(this.h),this.tail.map(f));
-
-    override def flatMap[B](f: A => MySet[B]): MySet[B] = ???
-
-    override def filter(predicate: A => Boolean): MySet[A] = if(predicate(this.head))
-      new set(this.head, this.tail.filter(predicate)) else this.tail.filter(predicate)
-
-    override def apply(v1: A): Boolean = this.contains(v1)
-
-    @tailrec
-    private def sizeHelper(set : MySet[A], size : Int): Int = {
-      if(set.isEmpty) size else sizeHelper(set.tail,size + 1)
-    }
-    override def size: Int = sizeHelper(this,0);
-
-    def foreachHelper(func: A => Unit , set : MySet[A]): Unit = {
-      if(!set.isEmpty) {
-        func (set.head)
-        foreachHelper(func,set.tail);
-      }
-    }
-    override def foreach(func: A => Unit): Unit = foreachHelper(func , this);
   }
 
 
-  //  object MySet {
-  //
-  //    def apply[A](values : A*) : MySet[A] = {
-  //      def buildSet(valSeq : Seq[A],acc : MySet[A]) : MySet[A] = {
-  //        if(valSeq.isEmpty) acc else buildSet(valSeq.tail, acc + valSeq.head)
-  //      }
-  //      buildSet(values.toSeq : Seq[A],new Empty[A]);
-  //    }
-  //  }
+  val stream = new Stream[Int](1,new Stream[Int](2,new EmptyStream[Int]));
 
-  val set : MySet[Int] = new set[Int](1,new set(2,new set(3,new Empty)));
+  val addedStream = 3 #:: stream
 
-  println(set.head + " " + set.tail.head + " " + set.tail.tail.head);
+  addedStream foreach println
 
-  val set2 = set + 5
-  println(set2.size);
+  println("---------------twice---------------");
 
-  val set3 = set2 + 5;
+  addedStream.map(x => x*2) foreach println
 
-  println(set3.size);
+  println("-------------two Added----------------")
 
-  val set4 = set ++ set3
+  val addedStreams = stream ++ addedStream
 
-  println(set4.size)
+  addedStreams foreach println
 
-  println(set2.head + " " + set2.tail.head + " " + set2.tail.tail.head + " " + set2.tail.tail.tail.head);
+  println("------------taking As List----------------")
+  val list = addedStreams.takeAsList(3);
 
-  val filteredSet = set.filter(x => x%2==0)
+  list foreach println
 
-  println(filteredSet.size);
-  println(filteredSet.head  + " " + (if(filteredSet.tail.isEmpty) 0 else filteredSet.tail.head ) )
+  println("--------Crashing------------------")
+  lazy val numbers = MyStream.from(1)(x=>x+1)
+
+  println("____100_____")
+  numbers.take(100) foreach println
+
+  val starForm0 = 0 #:: numbers
+
+  //Problem this below expression is giving us the StackOverflowException
+  println(starForm0.flatMap(x => new Stream(x,new Stream(x+1,new EmptyStream))).takeAsList(100));
+
+  //Because previously the ++ method was eagerly evaluated  to we make the parameter of the ++ method as callByName
 
 
-  set foreach println
-  println("___________")
-  set ++ set3 foreach println ;
-
-  set ++ set3 ++ set4 map(x => x*10) filter(x => x %2 == 0) foreach println
 }
 
 
