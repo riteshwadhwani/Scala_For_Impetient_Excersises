@@ -1,6 +1,6 @@
 package Excercises.RockWithJVM
 
-object ThreaCommunicationExcercise extends  App{
+object ThreadCommunicationExcercise extends  App{
   //Thread Communication Exercises
   /*
   1) think of an example where notifyAll acts in a different way than notify?
@@ -66,6 +66,7 @@ object ThreaCommunicationExcercise extends  App{
   //3 - livelock
   new Thread(()=> sam.pass(ritesh)).start()
   new Thread(()=> ritesh.pass(sam)).start()
+
 
 
 }
